@@ -8,7 +8,6 @@ on:
 
 jobs:
   build:
-    # Pin the image so ubuntu-latest migration does not affect the build
     runs-on: ubuntu-24.04
 
     steps:
@@ -21,30 +20,39 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Show project files
-        run: |
-          pwd
-          find . -maxdepth 3 -type f | sort
-
       - name: Install Gradle 8.9
         run: |
           wget -q https://services.gradle.org/distributions/gradle-8.9-bin.zip
           unzip -q gradle-8.9-bin.zip
           echo "$PWD/gradle-8.9/bin" >> "$GITHUB_PATH"
 
-      - name: Show Android environment
+      - name: Find Gradle project
+        shell: bash
         run: |
-          java -version
-          gradle --version
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          echo "Repository files:"
+          find . -maxdepth 5 -type f | sort
+
+          SETTINGS_FILE="$(find . -type f \
+            \( -name 'settings.gradle' -o -name 'settings.gradle.kts' \) \
+            -not -path './.git/*' | head -n 1)"
+
+          if [ -z "$SETTINGS_FILE" ]; then
+            echo "::error::No settings.gradle or settings.gradle.kts was found."
+            echo "::error::Upload the complete generated Android project."
+            exit 1
+          fi
+
+          PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
+          echo "Found Gradle project: $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
       - name: Build debug APK
+        working-directory: ${{ env.PROJECT_DIR }}
         run: gradle --no-daemon assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Auto-Reload-Browser-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: "**/app/build/outputs/apk/debug/*.apk"
           if-no-files-found: error
