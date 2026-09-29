@@ -3,32 +3,48 @@ name: Build Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Pin the image so ubuntu-latest migration does not affect the build
+    runs-on: ubuntu-24.04
 
     steps:
-      - name: Download project
-        uses: actions/checkout@v4
+      - name: Checkout project
+        uses: actions/checkout@v5
 
       - name: Install JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Install Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.9"
+      - name: Show project files
+        run: |
+          pwd
+          find . -maxdepth 3 -type f | sort
+
+      - name: Install Gradle 8.9
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.9-bin.zip
+          unzip -q gradle-8.9-bin.zip
+          echo "$PWD/gradle-8.9/bin" >> "$GITHUB_PATH"
+
+      - name: Show Android environment
+        run: |
+          java -version
+          gradle --version
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
 
       - name: Build debug APK
-        run: gradle --no-daemon assembleDebug
+        run: gradle --no-daemon assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: browser-debug-apk
+          name: Auto-Reload-Browser-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
